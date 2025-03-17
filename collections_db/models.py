@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Literal
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 from datetime import date
 
 class Korisnik(BaseModel):
@@ -23,3 +23,17 @@ class Korisnik_profil(BaseModel):
     županija: str
     grad: str
     
+class Kolekcije(BaseModel):
+    id: int
+    naziv: str
+        
+class Sličice(BaseModel):
+    id: int
+    id_kolekcija: int
+    naziv: Optional[str] = None
+    
+class Recenzija(BaseModel):
+    korisnik: str
+    recenzija: str = Field(min_length=1)
+    ocjena: int = Field (ge=1, le=5)
+    razmjena: bool = True
