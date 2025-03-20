@@ -15,6 +15,12 @@ class Korisnik(Korisnik_ime_prezime_lozinka_email_korisnicko_ime):
 class Korisnik_prijava(BaseModel):
     email: str
     lozinka: str = Field(min_length=8, description="Lozinka mora sadržavati jedan specijalni znak!")
+    
+class Korisnik_pretraga(BaseModel):
+    ime: str
+    prezime: str
+    email: str
+    korisnicko_ime: str
         
 class Korisnik_profil(Korisnik_ime_prezime_lozinka_email_korisnicko_ime):
     korisničke_informacije: str = Field(max_length=50)
@@ -42,3 +48,4 @@ class Recenzija(BaseModel):
     recenzija: str = Field(min_length=1)
     ocjena: int = Field (ge=1, le=5)
     razmjena: bool = True
+

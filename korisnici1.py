@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, status
-from models import Korisnik, Korisnik_prijava, Korisnik_profil, Recenzija
-from typing import List, Literal
+from fastapi import FastAPI, HTTPException, Query
+from models1 import Korisnik, Korisnik_prijava, Korisnik_profil, Recenzija, Korisnik_pretraga
+from typing import List, Literal, Optional
 import re
 
 app = FastAPI()
@@ -39,7 +39,6 @@ def korisnik_unos(profil_korisnika: Korisnik_profil):
     profil_korisnika.korisnicko_ime=korisnik.korisnicko_ime
     profil_korisnika.lozinka=korisnik.lozinka
     
-    
     for postojeci_profil in korisnici_db_profil:
         if postojeci_profil.email == profil_korisnika.email:
             raise HTTPException(status_code=400, detail="Korisnik s tim emailom već postoji!")
@@ -61,20 +60,27 @@ def korisnik_unos(prijava_korisnika: Korisnik_prijava):
                 return korisnik
         raise HTTPException(status_code=401, detail="Upisan je pogrešan email ili lozinka!")
     
-@app.get("/korisnik_pretraživanje_korisničkog/{korisnicko_ime}")
-def korisnicko_ime(korisnicko_ime: str):
+@app.get("/korisnik_pretraživanje_korisničkog", response_model=Korisnik_pretraga)
+def korisnicko_pretrazivanje(ime: Optional[str] = None, prezime: Optional[str]= None, email: Optional[str]= None, korisnicko_ime: Optional[str]= None):
+    
     for korisnik in korisnici_db:
-        if korisnik.korisnicko_ime == korisnicko_ime:
-            return korisnik
-    raise HTTPException(status_code=401, detail="Korisnik nije pronađen!")
+        if korisnicko_ime and korisnicko_ime.lower() in korisnik.korisnicko_ime.lower():
+            return Korisnik_pretraga(**korisnik.model_dump())
+        if  email and korisnik.email ==email:
+            return Korisnik_pretraga(**korisnik.model_dump())
+        if ime and prezime and korisnik.ime.lower() == ime.lower() and korisnik.prezime.lower() == prezime.lower():
+            return Korisnik_pretraga(**korisnik.model_dump())
+    raise HTTPException(status_code=404, detail="Korisnik nije pronađen!")
 
 @app.delete("/korisnik_brisanje/")
 def korisnik_brisanje(korisnicko_ime: str, lozinka: str):
     for korisnik in korisnici_db:
         if korisnik.korisnicko_ime==korisnicko_ime and korisnik.lozinka==lozinka:
-            return {"poruka": f"Podaci za {korisnicko_ime} uspješno obrisani!"}
-    
-    raise HTTPException(status_code=401, detail="Nemate ovlasti za pristup ovim podacima")
+            korisnici_db.remove(korisnik)
+            return {"poruka": f"Korisnički profil za korisnika {korisnicko_ime} je obrisan!"}
+          
+    raise HTTPException(status_code=404, detail="Korisnički račun ne postoji ili je krivo upisana lozinka!")
+
 
 dostupne_kolekcije=["KONZUM Zvjerići 3 Safari",
     "LaLiga 2024-2025",
@@ -86,14 +92,14 @@ dostupne_kolekcije=["KONZUM Zvjerići 3 Safari",
     "UEFA Champions League 2024-2025"]
 
 kolekcije_sa_brojevima_db = {
-    "KONZUM Zvjerići 3 Safari": list(range(1, 131)),  # Brojevi od 1 do 130
-    "LaLiga 2024-2025": list(range(1, 774)),  # Brojevi od 1 do 773
-    "FIFA 365 2025": list(range(1, 423)),  # Brojevi od 1 do 422
-    "Foot 2024-2025": list(range(1, 577)),  # Brojevi od 1 do 576
-    "Hrvatska Nogometna Liga 2024-2025": list(range(1, 361)),  # Brojevi od 1 do 360
-    "English Premier League 2024-2025": list(range(1, 765)),  # Brojevi od 1 do 764
-    "Calciatori 2024-2025": list(range(1, 927)),  # Brojevi od 1 do 926
-    "UEFA Champions League 2024-2025": list(range(1, 664))  # Brojevi od 1 do 663
+    "KONZUM Zvjerići 3 Safari": list(range(1, 131)),  
+    "LaLiga 2024-2025": list(range(1, 774)),  
+    "FIFA 365 2025": list(range(1, 423)),  
+    "Foot 2024-2025": list(range(1, 577)),  
+    "Hrvatska Nogometna Liga 2024-2025": list(range(1, 361)),  
+    "English Premier League 2024-2025": list(range(1, 765)),  
+    "Calciatori 2024-2025": list(range(1, 927)),  
+    "UEFA Champions League 2024-2025": list(range(1, 664))  
 }
 
 korisnik_nedostaje_db=[]
@@ -102,6 +108,20 @@ korisnik_duple_db=[]
 @app.get("/kolekcije")
 def dohvati_kolekciju():
     return dostupne_kolekcije
+
+@app.get("/kolekcija/{naziv}")
+def dohvati_kolekciju_sa_brojevima(naziv: str):
+    if naziv in kolekcije_sa_brojevima_db:
+        return kolekcije_sa_brojevima_db[naziv]
+    raise HTTPException(status_code=404, detail="Kolekcija toga naziva nije pronađena!")
+
+@app.post("/kolekcije_dodavanje")
+def dodaj_kolekciju(naziv: str, brojevi: int):
+    if naziv in kolekcije_sa_brojevima_db:
+        raise HTTPException(status_code=400, detail="Kolekcija je već u bazi!")
+    kolekcije_sa_brojevima_db[naziv] = list(range(1, brojevi + 1))
+    dostupne_kolekcije.append(naziv)
+    return {"naziv": naziv, "brojevi": list(range(1, brojevi + 1))}
 
 @app.post("/kolekcije_in")
 def unos_nedostaje(kolekcija: Literal["KONZUM Zvjerići 3 Safari", "LaLiga 2024-2025", "FIFA 365 2025", 
@@ -119,6 +139,17 @@ def unos_duple(kolekcija: Literal["KONZUM Zvjerići 3 Safari", "LaLiga 2024-2025
     korisnik_duple_db.append({"kolekcija": kolekcija, "brojevi": brojevi})
         
     return korisnik_duple_db
+
+@app.delete("/kolekcije_in_brisanje")
+def brisanje_duple(kolekcija: Literal["KONZUM Zvjerići 3 Safari", "LaLiga 2024-2025", "FIFA 365 2025", 
+                                        "Foot 2024-2025", "Hrvatska Nogometna Liga 2024-2025", 
+                                        "English Premier League 2024-2025", "Calciatori 2024-2025", 
+                                        "UEFA Champions League 2024-2025"], brojevi: list[int]):
+    for dupla in korisnik_nedostaje_db:
+        if dupla["kolekcija"] == kolekcija:
+            dupla["brojevi"] = list(filter(lambda br: br not in brojevi, dupla["brojevi"]))
+    
+    return korisnik_nedostaje_db
 
 @app.delete("/kolekcije_out_brisanje")
 def brisanje_duple(kolekcija: Literal["KONZUM Zvjerići 3 Safari", "LaLiga 2024-2025", "FIFA 365 2025", 
