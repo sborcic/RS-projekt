@@ -49,3 +49,7 @@ class Recenzija(BaseModel):
     ocjena: int = Field (ge=1, le=5)
     razmjena: bool = True
 
+class Poruka(BaseModel):
+    korisnik_primatelj: str
+    korisnik_posiljatelj: str
+    tekst: str
