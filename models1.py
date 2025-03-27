@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 from datetime import date
 
 class Korisnik_ime_prezime_lozinka_email_korisnicko_ime(BaseModel):
@@ -9,9 +9,10 @@ class Korisnik_ime_prezime_lozinka_email_korisnicko_ime(BaseModel):
     korisnicko_ime: str
     lozinka: str = Field(min_length=8, description="Lozinka mora sadržavati jedan specijalni znak!")
     
+    
 class Korisnik(Korisnik_ime_prezime_lozinka_email_korisnicko_ime):
     korisnik_ID: Optional[int] = None
-    
+           
 class Korisnik_prijava(BaseModel):
     email: str
     lozinka: str = Field(min_length=8, description="Lozinka mora sadržavati jedan specijalni znak!")
@@ -53,3 +54,15 @@ class Poruka(BaseModel):
     korisnik_primatelj: str
     korisnik_posiljatelj: str
     tekst: str
+
+class Korisnik1(BaseModel):
+    username: str
+    email: Union[str, None] = None
+    full_name: Union[str, None] = None
+    
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    ime_korisnika: str | None = None
