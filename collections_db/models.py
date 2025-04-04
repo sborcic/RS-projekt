@@ -23,10 +23,10 @@ class Korisnik_pretraga(BaseModel):
     korisnicko_ime: str
         
 class Korisnik_profil(Korisnik_ime_prezime_lozinka_email_korisnicko_ime):
-    korisničke_informacije: str = Field(max_length=50)
+    korisničke_informacije: Optional[str] = Field(default=None, max_length=50)
     spol: Literal["Nije odabrano", "Muško", "Žensko"] = "Nije odabrano"
     rođendan: date = Field(description= "format unosa je godina/mjesec/dan ili YYYY/MM/DD")
-    država: str
+    država: Optional [str] = None
     županija: Optional [str] = None
     grad: Optional [str] = None
     telefon: Optional[str] = None

@@ -1,9 +1,10 @@
 import boto3 
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
-from models1 import Korisnik_profil, Korisnik
+from models1 import Korisnik_profil, Korisnik, Korisnik_ime_prezime_lozinka_email_korisnicko_ime
 from fastapi import HTTPException
 from boto3.dynamodb.conditions import Key
 from routers.utils import hash_lozinka
+
 
 s3 = boto3.client('s3')
 
@@ -55,7 +56,7 @@ korisnici = [
     }
 ]
 
-korisnici_profil = [
+"""korisnici_profil = [
     {
         "korisnicko_ime": "marko123",
         "ime": "Marko",
@@ -91,19 +92,22 @@ korisnici_profil = [
         "email": "luka@example.com",
         "lozinka": "hashed_lozinka_5"
     }
-]
+]"""
 
-with table.batch_writer() as batch:
+"""with table.batch_writer() as batch:
     for korisnik in korisnici:
-        batch.put_item(Item=korisnik)
+        batch.put_item(Item=korisnik)"""
 
-with table_profil.batch_writer() as batch:
+"""with table_profil.batch_writer() as batch:
     for korisnik in korisnici_profil:
-        batch.put_item(Item=korisnik)
+        batch.put_item(Item=korisnik)"""
 
 korisnici = table.scan().get("Items", [])
 
-print(korisnici)
+korisnici_profil = table_profil.scan().get("Items", [])
+
+#print(korisnici)
+print(korisnici_profil)
 
 def create_table():
     try:
@@ -118,10 +122,10 @@ def create_table():
             AttributeDefinitions=[
                 {
                     'AttributeName': 'korisnicko_ime',
-                    'AttributeType': 'S'  # Tip atributa je string
+                    'AttributeType': 'S'
                 }
             ],
-            BillingMode='PAY_PER_REQUEST'  # Koristi On-Demand kapacitet
+            BillingMode='PAY_PER_REQUEST'
         )
         print("Tablica kreirana:", table)
     except Exception as e:
@@ -144,7 +148,7 @@ def dodaj_korisnika_dynamo(korisnik: Korisnik):
         print("Korisnik uspješno dodan:", response)
     except Exception as e:
         print("Greška pri dodavanju korisnika:", e)
-
+    
 def dohvati_korisnika_dynamo(korisnicko_ime: str):
     try:
         response = table.get_item(
@@ -152,44 +156,103 @@ def dohvati_korisnika_dynamo(korisnicko_ime: str):
                 'korisnicko_ime': korisnicko_ime
             }
         )
+                
         return response.get('Item')
+        
     except Exception as e:
         print("Greška pri dohvaćanju korisnika:", e)
         return None
 
-def azuriraj_korisnika_dynamo(korisnik: Korisnik):
+def azuriraj_korisnika_dynamo(korisnik: Korisnik_profil):
     try:
-        response = table.update_item(
-            Key={
-                'korisnicko_ime': korisnik.korisnicko_ime
+        table_profil.put_item(
+            Item={
+                'ime': korisnik.ime,
+                'prezime': korisnik.prezime,
+                'email': korisnik.email,
+                'lozinka': korisnik.lozinka,
+                'korisnicke_informacije': korisnik.korisničke_informacije,
+                'spol': korisnik.spol,
+                'rodendan': korisnik.rođendan.isoformat(),
+                'drzava': korisnik.država,
+                'zupanija': korisnik.županija,
+                'grad': korisnik.grad,
+                'telefon': korisnik.telefon,
+                'adresa': korisnik.adresa,
+                'postanski_broj': korisnik.postanski_broj,
+                'status': korisnik.status
             },
-            UpdateExpression="SET ime = :ime, prezime = :prezime, email = :email",
-            ExpressionAttributeValues={
-                ':ime': korisnik.ime,
-                ':prezime': korisnik.prezime,
-                ':email': korisnik.email
-            },
-            ReturnValues="UPDATED_NEW"
         )
-        print("Korisnik ažuriran:", response)
+        
     except Exception as e:
         print("Greška pri ažuriranju korisnika:", e)
+        raise HTTPException(status_code=500, detail="Greška pri ažuriranju korisnika: " + str(e))
+        
+"""def dodaj_profil_dynamo(profil: Korisnik_profil):
+    try:
+        
+        table.put_item(
+            Item={
+                "email": profil.email,
+                "korisnicko_ime": profil.korisnicko_ime,
+                "ime": profil.ime,
+                "prezime": profil.prezime,
+                "lozinka": profil.lozinka,  
+                #"informacije": profil.informacije,
+                "spol": profil.spol,
+                "rodendan": profil.rodendan,
+                "drzava": profil.drzava,
+                "zupanija": profil.zupanija,
+                "grad": profil.grad,
+                "telefon": profil.telefon,
+                "adresa": profil.adresa,
+                "postanski_broj": profil.postanski_broj,
+                "status": profil.status,
+            }
+        )
+        print(f"Profil uspješno dodan za email: {profil.email}")
+    except Exception as e:
+        print("Greška pri dodavanju profila:", e)
+        raise HTTPException(status_code=500, detail="Greška pri dodavanju profila u bazu: " + str(e))"""
 
-def dodaj_profil_dynamo(profil_korisnika: Korisnik_profil):
-    table_profil.put_item(
-        Item={
-            "email": profil_korisnika.email,
-            "ime": profil_korisnika.ime,
-            "prezime": profil_korisnika.prezime,
-            "korisnicko_ime": profil_korisnika.korisnicko_ime,
-            "lozinka": profil_korisnika.lozinka
-        }
-    )
 
 def dohvati_korisnika_po_emailu_dynamo(email: str):
-    response = table.query(KeyConditionExpression=Key("email").eq(email))
+    response = table.scan(
+        FilterExpression=Key('email').eq(email)
+    )
     items = response.get("Items", [])
-    return items[0] if items else None
+    if items:
+       
+        korisnik_data = items[0]
+        korisnik = Korisnik(**korisnik_data)
+        return korisnik
+    else:
+        return None
+
+def dodaj_profil_dynamo(profil: Korisnik_profil):
+    try:
+        
+        table_profil.put_item(
+            Item={
+                "email": profil.email,
+                "korisnicko_ime": profil.korisnicko_ime,
+                "ime": profil.ime,
+                "prezime": profil.prezime,
+                "lozinka": profil.lozinka,
+                "korisnicke_informacije": profil.korisnicke_informacije,
+                "spol": profil.spol,
+                "rodendan": profil.rodendan,
+                "drzava": profil.drzava,
+                "zupanija": profil.zupanija,
+                "grad": profil.grad,
+                "telefon": profil.telefon,
+                "adresa": profil.adresa,
+                "postanski_broj": profil.postanski_broj,
+                "status": profil.status,
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Greška pri dodavanju profila u bazu: " + str(e))
 
 def dohvati_id():
     response = table.scan(ProjectionExpression="korisnik_ID")
