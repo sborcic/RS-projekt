@@ -15,6 +15,10 @@ class Korisnik(Korisnik_ime_prezime_lozinka_email_korisnicko_ime):
 class Korisnik_prijava(BaseModel):
     email: str
     lozinka: str = Field(min_length=8, description="Lozinka mora sadržavati jedan specijalni znak!")
+
+class Korisnik_prijava_korisnickim_imenom(BaseModel):
+    korisnicko_ime: str
+    lozinka: str
     
 class Korisnik_pretraga(BaseModel):
     ime: str

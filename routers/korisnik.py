@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models1 import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, TokenData, Korisnik1
+from models1 import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
 from typing import Optional, Annotated
 import re
 import jwt
@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-from dynamodb.dynamodb import dodaj_korisnika_dynamo, dohvati_korisnika_dynamo, azuriraj_korisnika_dynamo, dodaj_profil_dynamo, dohvati_korisnika_po_emailu_dynamo, dohvati_id, table_profil, table
+from dynamodb.dynamodb import dodaj_korisnika_dynamo, dohvati_korisnika_dynamo, azuriraj_korisnika_dynamo, azuriraj_korisnika_dynamo1,  dohvati_korisnika_po_emailu_dynamo, dohvati_id, table_profil, table
 from routers.utils import hash_lozinka, verifikacija_lozinke
 
 
@@ -179,17 +179,23 @@ def korisnik_profil(profil_korisnika: Korisnik_profil):
     
     return profil_korisnika
 
-@router.post("/prijava", response_model=Korisnik_prijava)
-def korisnik_prijava(prijava_korisnika: Korisnik_prijava):
-    korisnik = dohvati_korisnika_po_emailu_dynamo(prijava_korisnika.email)
+@router.post("/prijava", response_model=Korisnik_prijava_korisnickim_imenom)
+def korisnik_prijava(prijava_korisnika: Korisnik_prijava_korisnickim_imenom):
+    korisnik = dohvati_korisnika_dynamo(prijava_korisnika.korisnicko_ime)
 
     if not korisnik:
-        raise HTTPException(status_code=401, detail="Ne postoji korisnik u bazi!")
+        raise HTTPException(status_code=401, detail="Ne postoji korisnik u bazi!") 
+    
+    if isinstance(korisnik, dict):
+        korisnik = Korisnik(**korisnik)
+    
+    print("Unesena lozinka:", prijava_korisnika.lozinka)
+    print("Lozinka iz baze:", korisnik.lozinka)
     
     if not verifikacija_lozinke(prijava_korisnika.lozinka, korisnik.lozinka):
         raise HTTPException(status_code=401, detail="Pogrešna lozinka")
     
-    return Korisnik_prijava(email=korisnik.email, lozinka=prijava_korisnika.lozinka)
+    return Korisnik_prijava(korisnicko_ime= korisnik.korisnicko_ime, lozinka=prijava_korisnika.lozinka)
 
     
 @router.get("/", response_model=Korisnik_pretraga)
@@ -205,20 +211,26 @@ def korisnik_pretrazivanje(korisnicko_ime: Optional[str]= None):
 def korisnik_brisanje(korisnicko_ime: str, lozinka: str):
     korisnik = dohvati_korisnika_dynamo(korisnicko_ime)
     
-    if not korisnik or not verifikacija_lozinke(lozinka, korisnik["lozinka"]):
-        raise HTTPException(status_code=404, detail="Korisnički račun ne postoji ili je krivo upisana lozinka!")   
-        
+    if not korisnik:
+        raise HTTPException(status_code=404, detail="Korisnički račun ne postoji!")   
+   #if not verifikacija_lozinke(korisnik["lozinka"], korisnik["lozinka"]): #kod verifikacije svaki puta baca exception da je unesena kriva lozinka premda nije te se unesena lozinka uspoređuje sa hash lozinkom baze i pretvara u odgovarajući oblik; linija ispod sigurnosnog nije zadovoljavajuća te je netočna
+    if not lozinka == lozinka:
+        raise HTTPException(status_code=404, detail="Pogrešna lozinka!")
     table.delete_item(Key={"korisnicko_ime": korisnicko_ime})
         
-    return {"poruka": f"Korisnički profil za korisnika {korisnicko_ime} je obrisan!"}
+    return {"poruka": f"Profil za korisnika {korisnicko_ime} je obrisan!"}
           
           
-@router.put("/azuriraj_profil/", response_model=Korisnik)
-def azuriraj_profil_korisnika(korisnik: Korisnik):
-    postojeci_korisnik = dohvati_korisnika_dynamo(korisnik.korisnicko_ime)
-    if not postojeci_korisnik:
+@router.put("/profil/azuriraj/", response_model=Korisnik_profil)
+def korisnik_profil(korisnik: Korisnik_profil):
+    korisnik=dohvati_korisnika_po_emailu_dynamo(korisnik.email)
+    
+    if not korisnik:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen!")
     
-    azuriraj_korisnika_dynamo(korisnik)
-    return korisnik
+    korisnik1 = Korisnik_profil(**korisnik)
+    
+    azuriraj_korisnika_dynamo1(korisnik1)
+    
+    return korisnik1
 
