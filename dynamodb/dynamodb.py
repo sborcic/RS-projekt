@@ -1,9 +1,10 @@
-import boto3 
+import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
-from models1 import Korisnik_profil, Korisnik, Korisnik_ime_prezime_lozinka_email_korisnicko_ime, Poruka
+from models import Korisnik_profil, Korisnik, Korisnik_ime_prezime_lozinka_email_korisnicko_ime, Poruka, Recenzija
 from fastapi import HTTPException
-from boto3.dynamodb.conditions import Key
-from routers.utils import hash_lozinka
+from boto3.dynamodb.conditions import Key, Attr
+
+
 
 
 s3 = boto3.client('s3')
@@ -574,3 +575,45 @@ def dohvati_poruku_dynamo(primatelj: str):
         raise HTTPException(status_code=404, detail="Nema poruke za ovoga korisnika!")
     
     return {"primatelj": primatelj, "poruka": poruka}
+
+table_recenzija= dynamodb.Table("recenzije_sa_ocjenama_db")
+
+def dodavanje_recenzije_dynamo(recenzija: Recenzija):
+    if not recenzija.korisnik_prima_recenziju:
+        raise HTTPException(status_code=404, detail="Potrebno je unijeti korisnika na kojega se recenzija odnosi!")
+    
+    korisnik_postoji=table_duple.get_item(Key={"korisnik_kolekcija": recenzija.korisnik_prima_recenziju})
+    
+    if "Item" not in korisnik_postoji:
+        raise HTTPException(status_code=404, detail="Sa korisnikom niste mogli obaviti zamjenu!")
+    
+    table_recenzija.put_item(Item={
+        "korisnik_prima_recenziju": recenzija.korisnik_prima_recenziju,
+        "korisnik_salje_recenziju": recenzija.korisnik_salje_recenziju,
+        "ocjena": recenzija.ocjena,
+        "recenzija": recenzija.recenzija
+    })
+    
+    return recenzija
+
+def prikaz_recenzija_dynamo(korisnik_prima_recenziju: str):
+    response=table_recenzija.scan(FilterExpression=Attr("korisnik_prima_recenziju").eq(korisnik_prima_recenziju))
+
+    items=response.get("Items", [])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="Korisnik nema niti jednu recenziju")
+        
+    return items
+
+def prikaz_ocjene_dynamo(korisnik_prima_recenziju: str):
+    response=table_recenzija.scan(FilterExpression=Attr("korisnik_prima_recenziju").eq(korisnik_prima_recenziju))
+
+    items=response.get("Items", [])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="Korisnik nema niti jednu ocjenu")
+    
+    prosjek= sum(item["ocjena"] for item in items) / len(items)
+    
+    return {"korisnik": korisnik_prima_recenziju, "ocjena": round(prosjek, 2)}

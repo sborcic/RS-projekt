@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models1 import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
+from models import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
 from typing import Optional, Annotated
 import re
 import jwt
@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-from dynamodb.dynamodb import dodaj_korisnika_dynamo, dohvati_korisnika_dynamo, azuriraj_korisnika_dynamo, azuriraj_korisnika_dynamo1,  dohvati_korisnika_po_emailu_dynamo, dohvati_id, table_profil, table
+from dynamodb.dynamodb import dodaj_korisnika_dynamo, dohvati_korisnika_dynamo, azuriraj_korisnika_dynamo, azuriraj_korisnika_dynamo1,  dohvati_korisnika_po_emailu_dynamo, dohvati_id, table_profil
 from routers.utils import hash_lozinka, verifikacija_lozinke
 
 

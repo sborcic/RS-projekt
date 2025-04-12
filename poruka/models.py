@@ -47,6 +47,7 @@ class DodajKolekciju(BaseModel):
     broj: int
     
 class IzmjeniKolekciju(BaseModel):
+    kolekcija_id: str
     kolekcija_naziv: str
     brojevi: list[int]
 
@@ -56,11 +57,11 @@ class Sličice(BaseModel):
     naziv: Optional[str] = None
     
 class Recenzija(BaseModel):
-    korisnik: str
+    korisnik_salje_recenziju: str
+    korisnik_prima_recenziju: str
     recenzija: str = Field(min_length=1)
     ocjena: int = Field (ge=1, le=5)
-    razmjena: bool = True
-
+    
 class Poruka(BaseModel):
     korisnik_primatelj: str
     korisnik_posiljatelj: str
@@ -75,5 +76,5 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-class TokenData(BaseModel):
+#class TokenData(BaseModel):
     ime_korisnika: str | None = None
