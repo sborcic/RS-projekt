@@ -1,65 +1,204 @@
 from fastapi import APIRouter, FastAPI
-from typing import Literal
-from dynamodb_local.dynamodb import dohvati_kolekciju_dynamo, dohvati_kolekciju_sa_brojevima_dynamo, kolekcija_izmjena_dynamo, dodaj_kolekciju_dynamo, unos_nedostaje_dynamo, unos_duple_dynamo, brisanje_nedostaje_dynamo, brisanje_duple_dynamo, trazi_zamjenu_dynamo
-from kolekcija.models import DodajKolekciju, IzmjeniKolekciju
+from models import Poruka
+import boto3
+from fastapi import HTTPException
+from passlib.context import CryptContext
+from botocore.exceptions import ClientError
 
+s3 = boto3.client('s3')
+
+client = boto3.client('dynamodb',
+    endpoint_url='http://localhost:8000',
+    region_name='eu-central-1',
+    aws_access_key_id='dummy',
+    aws_secret_access_key='dummy')
 
 app = FastAPI()
 
-router = APIRouter(prefix=("/kolekcija"))  
+router = APIRouter(prefix=("/poruka"))  
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_lozinka(lozinka: str):
+    return pwd_context.hash(lozinka)
+
+def tablica_postoji(tablica_ime):
+    try:
+        client.describe_table(TableName=tablica_ime)
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            return False
+        else:
+            raise
+
+def kreiraj_tablice():
+    if not tablica_postoji('korisnici_db'):
+        try:
+            client.create_table(
+                TableName='korisnici_db',
+                KeySchema=[
+                    {
+                        'AttributeName': 'korisnicko_ime',
+                        'KeyType': 'HASH'
+                    }
+                ],
+                AttributeDefinitions=[
+                    {
+                        'AttributeName': 'korisnicko_ime',
+                        'AttributeType': 'S'
+                    }
+                ],
+                ProvisionedThroughput={
+                    'ReadCapacityUnits': 5,
+                    'WriteCapacityUnits': 5
+                }
+            )
+            
+        except ClientError as e:
+            print(f"Greška pri stvaranju tablice 'korisnici_db': {e}")
+    
+    if not tablica_postoji('poruke_db'):
+        try:
+            client.create_table(
+                TableName='poruke_db',
+                KeySchema=[
+                    {
+                        'AttributeName': 'korisnik_primatelj',
+                        'KeyType': 'HASH'
+                    }
+                ],
+                AttributeDefinitions=[
+                    {
+                        'AttributeName': 'korisnik_primatelj',
+                        'AttributeType': 'S'
+                    }
+                ],
+                ProvisionedThroughput={
+                    'ReadCapacityUnits': 5,
+                    'WriteCapacityUnits': 5
+                }
+            )
+            
+        except ClientError as e:
+            print(f"Greška pri stvaranju tablice 'poruke_db': {e}")
+
+        
+kreiraj_tablice()
+
+poruke = [
+    {"korisnik_primatelj": "ana", "korisnik_posiljatelj": "ivan", "poruka": "Hej Ana, želiš li zamijeniti sličicu Ronaldo?"},
+    {"korisnik_primatelj": "marko", "korisnik_posiljatelj": "ana", "poruka": "Super recenzija tvoje kolekcije, jako korisno!"},
+    {"korisnik_primatelj": "ivan", "korisnik_posiljatelj": "marko", "poruka": "Imam duplikate Modrića, zanima li te?"},
+    {"korisnik_primatelj": "ana", "korisnik_posiljatelj": "marko", "poruka": "Recenzija primljena, hvala ti!"},
+    {"korisnik_primatelj": "marko", "korisnik_posiljatelj": "ivan", "poruka": "Zamjena prihvaćena, šaljem ti sličicu danas."},
+    {"korisnik_primatelj": "ivan", "korisnik_posiljatelj": "ana", "poruka": "Stigla sličica Mbappé, hvala ti puno!"},
+]
+
+
+for poruka in poruke:
+    client.put_item(
+        TableName='poruke_db',
+        Item={
+            'korisnik_primatelj': {'S': poruka['korisnik_primatelj']},
+            'korisnik_posiljatelj': {'S': poruka['korisnik_posiljatelj']},
+            'poruka': {'S': poruka['poruka']}
+        }
+    )
+
+korisnici = [
+    {
+        "korisnik_id": "1",
+        "ime": "Ana",
+        "prezime": "Anić",
+        "email": "ana@example.com",
+        "korisnicko_ime": "ana",
+        "lozinka": "tajna123"
+    },
+    {
+        "korisnik_id": "2",
+        "ime": "Ivan",
+        "prezime": "Ivić",
+        "email": "ivan@example.com",
+        "korisnicko_ime": "ivan",
+        "lozinka": "lozinka456"
+    },
+    {
+        "korisnik_id": "3",
+        "ime": "Marko",
+        "prezime": "Markić",
+        "email": "marko@example.com",
+        "korisnicko_ime": "marko",
+        "lozinka": "marko789"
+    }
+]
+
+for korisnik in korisnici:
+    client.put_item(
+        TableName='korisnici_db',
+        Item={
+            'korisnicko_ime': {'S': korisnik['korisnicko_ime']},
+            'korisnik_id': {'S': korisnik['korisnik_id']},
+            'ime': {'S': korisnik['ime']},
+            'prezime': {'S': korisnik['prezime']},
+            'email': {'S': korisnik['email']},
+            'lozinka': {'S': hash_lozinka(korisnik['lozinka'])}
+        }
+    )
+
+@router.post("/", response_model=Poruka)
+def posalji_poruku(poruka: Poruka):
+    try:
+        if poruka.korisnik_posiljatelj == poruka.korisnik_primatelj:
+            raise HTTPException(status_code=422, detail="Ne možete slati poruke samome sebi.")
+    
+        response_primatelj = client.get_item(TableName="korisnici_db",
+            Key={"korisnicko_ime": {"S": poruka.korisnik_primatelj}})
+    
+        if "Item" not in response_primatelj:
+            raise HTTPException(status_code=404, detail="Korisnik primatelj ne postoji!")
+    
+        response_posiljatelj= client.get_item(TableName="korisnici_db",
+                                            Key={"korisnicko_ime":{"S": poruka.korisnik_posiljatelj}})
+       
+        if "Item" not in response_posiljatelj:
+            raise HTTPException(status_code=404, detail="Korisnik posiljatelj ne postoji!")
+    
+    
+        client.put_item(TableName="poruke_db",
+            Item={"korisnik_primatelj":{"S": poruka.korisnik_primatelj},
+                                "korisnik_posiljatelj":{"S": poruka.korisnik_posiljatelj},
+                                "poruka":{"S": poruka.poruka}})
+                                
+        return {"korisnik_posiljatelj": poruka.korisnik_posiljatelj, "korisnik_primatelj": poruka.korisnik_primatelj, "poruka": poruka.poruka}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Greška pri slanju poruke: {str(e)}")
 
 @router.get("/")
-def dohvati_kolekciju():
-    return dohvati_kolekciju_dynamo()
-
-@router.get("/kolekcija_naziv_brojevi/{kolekcija_naziv}/{kolekcija_id}")
-def dohvati_kolekciju_sa_brojevima(kolekcija_naziv: Literal[
-        "Calciatori 2024-2025",
-        "Foot 2024-2025",
-        "English Premier League 2024-2025",
-        "LaLiga 2024-2025",
-        "FIFA 365 2025",
-        "Hrvatska Nogometna Liga 2024-2025",
-        "KONZUM Zvjerići 3 Safari",
-        "UEFA Champions League 2024-2025"], kolekcija_id: str):
-
-    return dohvati_kolekciju_sa_brojevima_dynamo(kolekcija_naziv, kolekcija_id)
+def dohvati_poruku(korisnik_primatelj: str):
     
-@router.post("/")
-def dodaj_kolekciju(dodaj_kolekciju: DodajKolekciju):
-    return dodaj_kolekciju_dynamo(**dodaj_kolekciju.model_dump())
+    try:
+        response=client.query(TableName="poruke_db",
+            KeyConditionExpression="korisnik_primatelj  = :korisnik_primatelj",
+                                ExpressionAttributeValues={":korisnik_primatelj":{"S": korisnik_primatelj}})   
     
-@router.put("/")
-def izmjena_kolekcije(izmjeni_kolekciju: IzmjeniKolekciju):
-   
-    naziv = izmjeni_kolekciju.kolekcija_naziv
-    brojevi = izmjeni_kolekciju.brojevi
-    kolekcija_id = izmjeni_kolekciju.kolekcija_id
-   
-    return kolekcija_izmjena_dynamo(kolekcija_id, naziv, brojevi)
+        poruka=response.get("Items", [])
+        
+        if not poruka:
+            raise HTTPException(status_code=404, detail="Nema poruke za ovoga korisnika!")
 
-@router.post("/unos/nedostaje")
-def unos_nedostaje(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[int]):
-                   
-    return unos_nedostaje_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
-
-@router.post("/unos/duple")
-def unos_duple(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[int]):
+        rezultat = [
+            {
+                "korisnik_posiljatelj": item["korisnik_posiljatelj"]["S"],
+                "poruka": item["poruka"]["S"]
+            }
+            for item in poruka
+        ]
+        
+        return {"primatelj": korisnik_primatelj, "poruka": rezultat}
     
-    return unos_duple_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
-
-@router.delete("/brisanje_nedostaje")
-def brisanje_nedostaje(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[int]): 
-    
-    return brisanje_nedostaje_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
-
-@router.delete("/brisanje_duple")
-def brisanje_duple(korisnicko_ime, kolekcija_naziv, brojevi):
-    
-    return brisanje_duple_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
-
-@router.get("/zamjena")
-def trazi_zamjenu(korisnicko_ime:str, korisnik_posjeduje: str, kolekcija: str):
-    return trazi_zamjenu_dynamo(korisnicko_ime, korisnik_posjeduje, kolekcija)
-
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Greška pri dohvaćanju poruka: {str(e)}")
+        
 app.include_router(router)
