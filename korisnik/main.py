@@ -1,15 +1,18 @@
-from fastapi import APIRouter, HTTPException, Depends
-from models import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
-from typing import Optional, Annotated
-import re
-import jwt
+from fastapi import APIRouter, FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
-from datetime import datetime, timedelta, timezone
-from dynamodb.dynamodb import dodaj_korisnika_dynamo, dohvati_korisnika_dynamo, azuriraj_korisnika_dynamo, azuriraj_korisnika_dynamo1,  dohvati_korisnika_po_emailu_dynamo, dohvati_id, table_profil
-from routers.utils import hash_lozinka, verifikacija_lozinke
 
+from korisnik.models import Korisnik, Korisnik_bez_lozinke, Token, Korisnik_profil1, Korisnik_prijava_korisnickim_imenom, Korisnik_pretraga
+from korisnik.dynamodb_korisnik import korisnik_registracija_dynamo, dohvati_korisnika_dynamo, dohvati_korisnika_po_emailu_dynamo, azuriraj_korisnika_dynamo1, korisnik_brisanje_dynamo
+from typing import Optional, Annotated
+
+import jwt
+from jwt.exceptions import InvalidTokenError
+
+from passlib.context import CryptContext
+
+from datetime import datetime, timedelta, timezone
+
+app = FastAPI()
 
 router = APIRouter(prefix=("/korisnik"))   
 
@@ -68,67 +71,34 @@ def dohvati_trenutnog_korisnika(token: Annotated[str, Depends(oauth2_scheme)]):
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
-        print("DEKODIRAO TOKEN")
         
         username = payload.get("sub")
-        print(f"Username iz tokena: {username}")
-         
+                 
         if username is None:
-            print("Username nije prisutan u tokenu!")
+            
             raise credentials_exception 
     
     except InvalidTokenError as e:
         print(f"Greška u dekodiranju tokena: {str(e)}")
-        print(f"Token koji je pao: {token}")
+        
         raise credentials_exception
+  
 
-    
-    print(f"Pokušavam dohvatiti korisnika s korisničkim imenom: {username}")
     korisnik = dohvati_korisnika_dynamo(username)
     
-    print(f"Korisnik dohvaćen: {korisnik}") 
-    print(f"Tip dohvaćenog korisnika: {type(korisnik)}") 
-    
+   
     if korisnik is None:
-        
+       
         raise credentials_exception
     
     dohvati_korisnika=Korisnik(**korisnik)
     
     return dohvati_korisnika
 
-
-@router.post("/registracija/",response_model=Korisnik)
+@router.post("/registracija/",response_model=Korisnik_bez_lozinke)
 def korisnik_registracija(korisnik: Korisnik):
-   
-    postojeci_korisnik=dohvati_korisnika_dynamo(korisnik.korisnicko_ime)
-    if postojeci_korisnik:
-        raise HTTPException(status_code=400, detail="Korisnik s tim korisničkim imenom ili emailom već postoji!")
-    
-    response = table.scan()
-    korisnici = response.get("Items", [])
-    
-    postoji_email= False
-    for postojeci_korisnik in korisnici:
-        if postojeci_korisnik.get("email") == korisnik.email:
-            postoji_email=True
-            break    
-        
-    if postoji_email:
-        raise HTTPException(status_code=400, detail="Korisnik s tim emailom već postoji!")
-                            
-    specijalni_znakovi = r"[!\"#$%&/()=?*]"
-
-    if not re.search(specijalni_znakovi, korisnik.lozinka):
-        raise HTTPException(status_code=400, detail="Lozinka ne sadrži specijalni znak!")
-    
-    korisnik.lozinka=hash_lozinka(korisnik.lozinka)
-    
-    korisnik.korisnik_ID= dohvati_id()   
-    
-    dodaj_korisnika_dynamo(korisnik)
-    
-    return korisnik
+     
+    return korisnik_registracija_dynamo(korisnik)
 
 @router.post("/token/", response_model=Token)
 def prijava_korisnika_tokenom(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], ) -> Token:
@@ -141,7 +111,7 @@ def prijava_korisnika_tokenom(form_data: Annotated[OAuth2PasswordRequestForm, De
         )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = kreiraj_token(
-        data={"sub": korisnik["korisnicko_ime"]}, expires_delta=access_token_expires
+        podaci={"sub": korisnik["korisnicko_ime"]}, expires_delta=access_token_expires
     )
     return Token(access_token=access_token, token_type="bearer")
 
@@ -151,33 +121,11 @@ def dohvati_trenutno_aktivnog_korisnika(
    
     return trenutni_korisnik
 
-@router.get("/moj_profil/", response_model=Korisnik)
+@router.get("/moj_profil/", response_model=Korisnik_bez_lozinke)
 def dohvati_moj_profil(trenutni_korisnik: Annotated[Korisnik, Depends(dohvati_trenutno_aktivnog_korisnika)],):
     return trenutni_korisnik
 
-@router.post("/profil", response_model=Korisnik_profil)
-def korisnik_profil(profil_korisnika: Korisnik_profil):
-    korisnik=dohvati_korisnika_po_emailu_dynamo(profil_korisnika.email)
-    
-    if not korisnik:
-        raise HTTPException(status_code=404, detail="Korisnik nije pronađen!")
-    
-    profil_korisnika.ime=korisnik.get("ime")
-    profil_korisnika.prezime=korisnik.get("prezime")
-    profil_korisnika.korisnicko_ime=korisnik.get("korisnicko_ime")
-        
-    svi_korisnici= table.scan().get("Items", [])
-    
-    korisnik_postoji = any(kor.get("email") == profil_korisnika.email and kor.get("korisnicko_ime") == profil_korisnika.korisnicko_ime for kor in svi_korisnici)
-     
-    if not korisnik_postoji:
-        raise HTTPException(status_code=400, detail="Korisnik ne postoji u bazi!")
-                
-    azuriraj_korisnika_dynamo(profil_korisnika)
-    
-    return profil_korisnika
-
-@router.post("/prijava", response_model=Korisnik_prijava_korisnickim_imenom)
+@router.post("/prijava_korisnika/", response_model=Korisnik_bez_lozinke)
 def korisnik_prijava(prijava_korisnika: Korisnik_prijava_korisnickim_imenom):
     korisnik = dohvati_korisnika_dynamo(prijava_korisnika.korisnicko_ime)
 
@@ -185,17 +133,15 @@ def korisnik_prijava(prijava_korisnika: Korisnik_prijava_korisnickim_imenom):
         raise HTTPException(status_code=401, detail="Ne postoji korisnik u bazi!") 
     
     if isinstance(korisnik, dict):
+        
         korisnik = Korisnik(**korisnik)
-    
-    print("Unesena lozinka:", prijava_korisnika.lozinka)
-    print("Lozinka iz baze:", korisnik.lozinka)
-    
+       
     if not verifikacija_lozinke(prijava_korisnika.lozinka, korisnik.lozinka):
         raise HTTPException(status_code=401, detail="Pogrešna lozinka")
     
-    return Korisnik_prijava(korisnicko_ime= korisnik.korisnicko_ime, lozinka=prijava_korisnika.lozinka)
+    return Korisnik_bez_lozinke(korisnicko_ime=korisnik.korisnicko_ime, ime=korisnik.ime, prezime=korisnik.prezime, email=korisnik.email)
 
-    
+
 @router.get("/", response_model=Korisnik_pretraga)
 def korisnik_pretrazivanje(korisnicko_ime: Optional[str]= None):
     
@@ -211,24 +157,24 @@ def korisnik_brisanje(korisnicko_ime: str, lozinka: str):
     
     if not korisnik:
         raise HTTPException(status_code=404, detail="Korisnički račun ne postoji!")   
-   #if not verifikacija_lozinke(korisnik["lozinka"], korisnik["lozinka"]): #kod verifikacije svaki puta baca exception da je unesena kriva lozinka premda nije te se unesena lozinka uspoređuje sa hash lozinkom baze i pretvara u odgovarajući oblik; linija ispod sigurnosnog nije zadovoljavajuća te je netočna
-    if not lozinka == lozinka:
-        raise HTTPException(status_code=404, detail="Pogrešna lozinka!")
-    table.delete_item(Key={"korisnicko_ime": korisnicko_ime})
+    
+    if not verifikacija_lozinke(lozinka, korisnik["lozinka"]): #kod verifikacije svaki puta baca exception da je unesena kriva lozinka premda nije te se unesena lozinka uspoređuje sa hash lozinkom baze i pretvara u odgovarajući oblik; linija ispod sigurnosnog nije zadovoljavajuća te je netočna
+        raise HTTPException(status_code= 401, detail="Kriva lozinka")
         
-    return {"poruka": f"Profil za korisnika {korisnicko_ime} je obrisan!"}
+    return korisnik_brisanje_dynamo(korisnicko_ime)
           
-          
-@router.put("/profil/azuriraj/", response_model=Korisnik_profil)
-def korisnik_profil(korisnik: Korisnik_profil):
+       
+@router.put("/profil/azuriraj/", response_model=Korisnik_profil1)
+def korisnik_profil(korisnik: Korisnik_profil1):
     korisnik=dohvati_korisnika_po_emailu_dynamo(korisnik.email)
     
     if not korisnik:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen!")
     
-    korisnik1 = Korisnik_profil(**korisnik)
-    
+    korisnik1 = Korisnik_profil1(**korisnik)
+        
     azuriraj_korisnika_dynamo1(korisnik1)
     
     return korisnik1
 
+app.include_router(router)

@@ -140,7 +140,7 @@ for korisnik in korisnici:
             'lozinka': {'S': hash_lozinka(korisnik['lozinka'])}
         }
     )
-"""
+
 def kreiraj_tablicu_recenzije():
     try:
         client.create_table(
@@ -161,7 +161,7 @@ def kreiraj_tablicu_recenzije():
         print(f"Greška pri kreiranju tablice: {e}")
 
 kreiraj_tablicu_recenzije()
-"""
+
 recenzije_dummy = [
     {
         "korisnik_prima_recenziju": "ivan",
@@ -201,7 +201,7 @@ def ubaci_recenzije():
 
 ubaci_recenzije()
 
-"""
+
 def kreiraj_tablicu_dostupne_kolekcije():
     try:
         client.create_table(
@@ -222,7 +222,7 @@ def kreiraj_tablicu_dostupne_kolekcije():
         print(f"Greška pri kreiranju tablice: {e}")
 
 kreiraj_tablicu_dostupne_kolekcije()
-"""   
+
 def dodaj_dostupne_kolekcije():
     dostupne_kolekcije = [
         {"kolekcija_naziv": "KONZUM Zvjerići 3 Safari"},
@@ -258,7 +258,7 @@ def dodaj_dostupne_kolekcije():
         id_count +=1
 
 dodaj_dostupne_kolekcije()
-"""        
+
 def kreiraj_tablicu_kolekcije_brojevi():
     try:
         client.create_table(
@@ -279,7 +279,7 @@ def kreiraj_tablicu_kolekcije_brojevi():
         print(f"Greška pri kreiranju tablice: {e}")
         
 kreiraj_tablicu_kolekcije_brojevi()
-"""
+
 def dodaj_kolekcije_brojevi():
     kolekcije_sa_brojevima = [
         {"kolekcija_naziv": "KONZUM Zvjerići 3 Safari", "brojevi": list(range(1, 131))},
@@ -375,74 +375,90 @@ def unos_korisnik_nedostaje():
             print(f" Greška pri unosu korisnika {korisnik['korisnicko_ime']}: {str(e)}")
 
 unos_korisnik_nedostaje()
-"""
-def kreiraj_korisnik_duple_db():
+
+def provjera_tablica_korisnik_duple_postoji(ime_tablice):
     try:
-        response = client.create_table(
-            TableName="korisnik_duple_db",
-            KeySchema=[
+        client.describe_table(TableName=ime_tablice)
+        
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            
+            return False
+        else:
+            
+            raise
+
+def kreiraj_korisnik_duple_db():
+    ime_tablice="korisnik_duple_db"
+    
+    if not provjera_tablica_korisnik_duple_postoji(ime_tablice):
+        try:
+            response = client.create_table(
+                TableName="korisnik_duple_db",
+                KeySchema=[
                 {
                     'AttributeName': 'korisnicko_ime',
                     'KeyType': 'HASH'  
                 }
             ],
-            AttributeDefinitions=[
+                AttributeDefinitions=[
                 {
                     'AttributeName': 'korisnicko_ime',
                     'AttributeType': 'S'  
                 }],
-            ProvisionedThroughput={
+                ProvisionedThroughput={
                 'ReadCapacityUnits': 5,
                 'WriteCapacityUnits': 5
             }
         )
-        print("Tablica uspješno kreirana:", response)
-        return response
-    except ClientError as e:
-        print("Greška pri kreiranju tablice:", e.response['Error']['Message'])
-        raise
+            print("Tablica uspješno kreirana:", response)
+            return response
+        except ClientError as e:
+            print("Greška pri kreiranju tablice:", e.response['Error']['Message'])
+            raise
 
 kreiraj_korisnik_duple_db()
-"""
-def unos_korisnik_nedostaje():
+
+def unos_korisnik_duple():
     
-    korisnici_nedostaje = [
+    korisnici_duple = [
         {
             "korisnicko_ime": "ivan123",
             "kolekcija_naziv": "FIFA 365 2025",
-            "brojevi": [2, 5, 7, 20]
+            "brojevi": [22, 55, 77, 200]
         },
         {
             "korisnicko_ime": "ana_nogomet",
             "kolekcija_naziv": "UEFA Champions League 2024-2025",
-            "brojevi": [1, 6, 12]
+            "brojevi": [11, 66, 120]
         },
         {
             "korisnicko_ime": "marko_kolekcionar",
             "kolekcija_naziv": "LaLiga 2024-2025",
-            "brojevi": [4, 9, 15, 33]
+            "brojevi": [44, 99, 150, 333]
         },
         {
             "korisnicko_ime": "petra_fan",
             "kolekcija_naziv": "Premier League 2024-2025",
-            "brojevi": [11, 18, 21]
+            "brojevi": [111, 188, 211]
         },
         {
             "korisnicko_ime": "luka_futbol",
             "kolekcija_naziv": "Bundesliga 2024-2025",
-            "brojevi": [3, 8, 14, 27]
+            "brojevi": [33, 88, 140, 277]
         }
     ]
     
     try:
         
-        for korisnik in korisnici_nedostaje:
+        for korisnik in korisnici_duple:
             korisnicko_ime = korisnik['korisnicko_ime']
             kolekcija_naziv = korisnik['kolekcija_naziv']
             brojevi = korisnik['brojevi']
             
             
-            response = client.get_item(TableName="korisnik_nedostaje_db", Key={"korisnicko_ime": {"S": korisnicko_ime}})
+            response = client.get_item(TableName="korisnik_duple_db", Key={"korisnicko_ime": {"S": korisnicko_ime}})
             item = response.get("Item")
             
             if item:
@@ -453,14 +469,13 @@ def unos_korisnik_nedostaje():
                 novi_brojevi = [broj for broj in brojevi if broj not in postojeci_brojevi_]
                 
                 if novi_brojevi:
-                    azurirani_brojevi = postojeci_brojevi + novi_brojevi
-                    pretvorba_brojeva = [{"N": str(broj)} for broj in azurirani_brojevi]
-
+                    azurirani_brojevi = postojeci_brojevi + [{"N": str(broj)} for broj in novi_brojevi]
+                
                     client.update_item(
-                        TableName="korisnik_nedostaje_db",
+                        TableName="korisnik_duple_db",
                         Key={"korisnicko_ime": {"S": korisnicko_ime}},
                         UpdateExpression="SET brojevi = :val, kolekcija_naziv = :naziv",
-                        ExpressionAttributeValues={":val": {"L": pretvorba_brojeva}, ":naziv": {"S": kolekcija_naziv}}
+                        ExpressionAttributeValues={":val": {"L": azurirani_brojevi}, ":naziv": {"S": kolekcija_naziv}}
                     )
                     print(f"Azurirani brojevi za korisnika {korisnicko_ime}")
                 else:
@@ -468,7 +483,7 @@ def unos_korisnik_nedostaje():
             else:
             
                 client.put_item(
-                    TableName="korisnik_nedostaje_db",
+                    TableName="korisnik_duple_db",
                     Item={
                         "korisnicko_ime": {"S": korisnicko_ime},
                         "kolekcija_naziv": {"S": kolekcija_naziv},
@@ -483,7 +498,7 @@ def unos_korisnik_nedostaje():
         raise HTTPException(status_code=500, detail=f"Ažuriranje nije uspjelo: {str(e)}")
 
 
-unos_korisnik_nedostaje()
+unos_korisnik_duple()
 
 def dohvati_kolekciju_dynamo():
     try:
@@ -660,7 +675,7 @@ def unos_duple_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[i
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ažuriranje nije uspjelo: {str(e)}")
-"""        
+    
 def brisanje_nedostaje_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[int]):
     try:
         response=client.get_item(TableName="korisnik_nedostaje_db",
@@ -668,19 +683,21 @@ def brisanje_nedostaje_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi
     
         if "Item" in response:
             item=response["Item"]
-            postojeci_brojevi=item.get("brojevi", {}).get("L", [])
-            postojeci_brojevi = [broj["N"] for broj in postojeci_brojevi]
+            postojeci_brojevi_dynamo=item.get("brojevi", {}).get("L", [])
             
-            uklonjeni_brojevi = [broj for broj in brojevi if str(broj) in postojeci_brojevi]
-        
-            azurirani_brojevi = [broj for broj in postojeci_brojevi if broj not in brojevi]
+            postojeci_brojevi = [int(broj["N"]) for broj in postojeci_brojevi_dynamo]
+           
+            uklonjeni_brojevi = [broj for broj in brojevi if broj in postojeci_brojevi]
+
+            azurirani_brojevi = [broj for broj in postojeci_brojevi if int(broj["N"]) not in uklonjeni_brojevi]
             
+            azurirani_brojevi_dynamo={"N": str(broj)} for broj in azurirani_brojevi]
         
             client.update_item(TableName="korisnik_nedostaje_db",
                 Key={"korisnicko_ime": {"S": korisnicko_ime}},
                                     UpdateExpression="SET brojevi= :val",
                                     ExpressionAttributeValues={
-                                        ":val": {"L": [{"N": str(broj)} for broj in azurirani_brojevi]}})
+                                        ":val": {"L": [{"N": str(broj)} for broj in azurirani_brojevi_dynamo]}})
         
             return {"kolekcija_naziv": kolekcija_naziv, "obrisani_br": uklonjeni_brojevi}
         
@@ -689,7 +706,7 @@ def brisanje_nedostaje_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Brisanje nije uspjelo: {str(e)}")
-    
+
 def brisanje_duple_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[int]):
     try:
         response=client.get_item(TableName="korisnik_duple_db",
@@ -699,18 +716,18 @@ def brisanje_duple_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi: li
             item=response["Item"]
             
             postojeci_brojevi=item.get("brojevi", {}).get("L", [])
-            postojeci_brojevi = [broj["N"] for broj in postojeci_brojevi] 
+
+            postojeci_brojevi_dynamo = [int(broj["N"]) for broj in postojeci_brojevi] 
             
-            uklonjeni_brojevi=[broj for broj in brojevi if str(broj) in  postojeci_brojevi]
-            
-            azurirani_brojevi = [broj for broj in postojeci_brojevi if broj not in uklonjeni_brojevi]
-            
-        
+            uklonjeni_brojevi=[broj for broj in brojevi if str(broj) in  postojeci_brojevi_dynamo]
+                                    
+            azurirani_brojevi = [broj for broj in postojeci_brojevi if int(broj["N"]) not in uklonjeni_brojevi]
+                     
             client.update_item(TableName="korisnik_duple_db",
                 Key={"korisnicko_ime":  {"S": korisnicko_ime}},
                                     UpdateExpression="SET brojevi= :val",
                                     ExpressionAttributeValues={
-                                        ":val": {"L": [{"N": str(broj)} for broj in azurirani_brojevi]}}
+                                        ":val": {"L": azurirani_brojevi}}
             )
             
             return {"kolekcija_naziv": kolekcija_naziv, "obrisani_br": uklonjeni_brojevi}
@@ -720,7 +737,7 @@ def brisanje_duple_dynamo(korisnicko_ime: str, kolekcija_naziv: str, brojevi: li
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Brisanje nije uspjelo: {str(e)}")
-                                      """
+
 def trazi_zamjenu_dynamo(korisnicko_ime: str, korisnik_posjeduje: str, kolekcija: str):
     try:  
         response_nedostaje=client.get_item(TableName="korisnik_nedostaje_db",
