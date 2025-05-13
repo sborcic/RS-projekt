@@ -1,7 +1,7 @@
 from fastapi import APIRouter, FastAPI
 from typing import Literal
-from dynamodb_local.dynamodb import dohvati_kolekciju_dynamo, dohvati_kolekciju_sa_brojevima_dynamo, dodaj_kolekciju_dynamo, kolekcija_izmjena_dynamo, unos_nedostaje_dynamo, unos_duple_dynamo, brisanje_nedostaje_dynamo, brisanje_duple_dynamo, trazi_zamjenu_dynamo
-from models import DodajKolekciju, IzmjeniKolekciju
+from dynamodb import dohvati_kolekciju_dynamo, dohvati_kolekciju_sa_brojevima_dynamo, dodaj_kolekciju_dynamo, kolekcija_izmjena_dynamo, unos_nedostaje_dynamo, unos_duple_dynamo, brisanje_nedostaje_dynamo, brisanje_duple_dynamo, trazi_zamjenu_dynamo
+from models import IzmjeniKolekciju, DodajKolekciju
 
 app = FastAPI()
 
@@ -31,9 +31,10 @@ def dodaj_kolekciju(dodaj_kolekciju: DodajKolekciju):
 @router.put("/")
 def izmjena_kolekcije(izmjeni_kolekciju: IzmjeniKolekciju):
    
+    kolekcija_id = izmjeni_kolekciju.kolekcija_id
     naziv = izmjeni_kolekciju.kolekcija_naziv
     brojevi = izmjeni_kolekciju.brojevi
-    kolekcija_id = izmjeni_kolekciju.kolekcija_id
+    
    
     return kolekcija_izmjena_dynamo(kolekcija_id, naziv, brojevi)
 
@@ -53,7 +54,7 @@ def brisanje_nedostaje(korisnicko_ime: str, kolekcija_naziv: str, brojevi: list[
     return brisanje_nedostaje_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
 
 @router.delete("/brisanje_duple")
-def brisanje_duple(korisnicko_ime, kolekcija_naziv, brojevi):
+def brisanje_duple(korisnicko_ime, kolekcija_naziv, brojevi: list[int]):
     
     return brisanje_duple_dynamo(korisnicko_ime, kolekcija_naziv, brojevi)
 

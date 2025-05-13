@@ -1,3 +1,6 @@
+import bcrypt
+import types
+
 from fastapi import APIRouter, FastAPI
 from models import Poruka
 import boto3
@@ -5,10 +8,17 @@ from fastapi import HTTPException
 from passlib.context import CryptContext
 from botocore.exceptions import ClientError
 
+
+if not hasattr(bcrypt, '__about__'):    #kako se ne bi pojavljivala poruka AttributeError: module 'bcrypt' has no attribute '__about__'
+    print("[INFO] Patching bcrypt: dodavanje bcrypt.__about__.__version__")
+    bcrypt.__about__ = types.SimpleNamespace(__version__='4.1.0')
+else:
+    print("[INFO] bcrypt već ima __about__.__version__")
+
 s3 = boto3.client('s3')
 
 client = boto3.client('dynamodb',
-    endpoint_url='http://localhost:8000',
+    endpoint_url='http://host.docker.internal:8000',    #endpoint_url="http://localhost:8000",
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')

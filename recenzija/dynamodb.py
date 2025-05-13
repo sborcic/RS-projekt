@@ -2,7 +2,7 @@ import boto3
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from passlib.context import CryptContext
-from models import Recenzija, Poruka
+from models import Recenzija
 
 s3 = boto3.client('s3')
 
@@ -821,58 +821,6 @@ def trazi_zamjenu_dynamo(korisnicko_ime: str, korisnik_posjeduje: str, kolekcija
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Došlo je do pogreške: {str(e)}")
         
-def posalji_poruku_dynamo(poruka: Poruka):
-    try:
-        if poruka.korisnik_posiljatelj == poruka.korisnik_primatelj:
-            raise HTTPException(status_code=422, detail="Ne možete slati poruke samome sebi.")
-    
-        response_primatelj = client.get_item(TableName="korisnici_db",
-            Key={"korisnicko_ime": {"S": poruka.korisnik_primatelj}})
-    
-        if "Item" not in response_primatelj:
-            raise HTTPException(status_code=404, detail="Korisnik primatelj ne postoji!")
-    
-        response_posiljatelj= client.get_item(TableName="korisnici_db",
-                                            Key={"korisnicko_ime":{"S": poruka.korisnik_posiljatelj}})
-       
-        if "Item" not in response_posiljatelj:
-            raise HTTPException(status_code=404, detail="Korisnik posiljatelj ne postoji!")
-    
-    
-        client.put_item(TableName="poruke_db",
-            Item={"korisnik_primatelj":{"S": poruka.korisnik_primatelj},
-                                "korisnik_posiljatelj":{"S": poruka.korisnik_posiljatelj},
-                                "poruka":{"S": poruka.poruka}})
-                                
-        return {"korisnik_posiljatelj": poruka.korisnik_posiljatelj, "korisnik_primatelj": poruka.korisnik_primatelj, "poruka": poruka.poruka}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Greška pri slanju poruke: {str(e)}")
-
-def dohvati_poruku_dynamo(primatelj: str):
-    try:
-        response=client.query(TableName="poruke_db",
-            KeyConditionExpression="korisnik_primatelj  = :primatelj",
-                                ExpressionAttributeValues={":primatelj":{"S": primatelj}})   
-    
-        poruka=response.get("Items", [])
-        
-        if not poruka:
-            raise HTTPException(status_code=404, detail="Nema poruke za ovoga korisnika!")
-
-        rezultat = [
-            {
-                "korisnik_posiljatelj": item["korisnik_posiljatelj"]["S"],
-                "poruka": item["poruka"]["S"]
-            }
-            for item in poruka
-        ]
-        
-        return {"primatelj": primatelj, "poruka": rezultat}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Greška pri dohvaćanju poruka: {str(e)}")
- 
 def dodavanje_recenzije_dynamo(recenzija: Recenzija):
     if not recenzija.korisnik_prima_recenziju:
         raise HTTPException(status_code=404, detail="Potrebno je unijeti korisnika na kojega se recenzija odnosi!")

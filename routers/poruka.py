@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models import Poruka
+from routers.models import Poruka
 from dynamodb.dynamodb import dohvati_poruku_dynamo, posalji_poruku_dynamo
 
 router = APIRouter(prefix=("/poruka"))  

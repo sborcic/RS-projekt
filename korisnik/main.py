@@ -1,8 +1,8 @@
 from fastapi import APIRouter, FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from korisnik.models import Korisnik, Korisnik_bez_lozinke, Token, Korisnik_profil1, Korisnik_prijava_korisnickim_imenom, Korisnik_pretraga
-from korisnik.dynamodb_korisnik import korisnik_registracija_dynamo, dohvati_korisnika_dynamo, dohvati_korisnika_po_emailu_dynamo, azuriraj_korisnika_dynamo1, korisnik_brisanje_dynamo
+from models import Korisnik, Token, Korisnik_profil1, Korisnik_prijava_korisnickim_imenom, Korisnik_pretraga, Korisnik_bez_lozinke
+from dynamodb_korisnik import korisnik_registracija_dynamo, dohvati_korisnika_dynamo, dohvati_korisnika_po_emailu_dynamo, azuriraj_korisnika_dynamo, korisnik_brisanje_dynamo
 from typing import Optional, Annotated
 
 import jwt
@@ -28,8 +28,12 @@ def hash_lozinka(lozinka: str):
     return pwd_context.hash(lozinka)
 
 def verifikacija_lozinke(lozinka_unos: str, lozinka_hash: str):
-    return pwd_context.verify(lozinka_unos, lozinka_hash)
-
+    try: 
+        return pwd_context.verify(lozinka_unos, lozinka_hash)
+    except Exception as e:
+        print("Greška kod verifikacije!")
+        return False
+        
 def dohvati_korisnika(korisnicko_ime: str):
     korisnik = dohvati_korisnika_dynamo(korisnicko_ime)
     
@@ -43,6 +47,7 @@ def autentifikacija_korisnika(korisnicko_ime: str, lozinka: str):
     
     if not korisnik:
         print("Korisnik nije pronađen!")
+        return None
         
     if not verifikacija_lozinke(lozinka, korisnik["lozinka"]):
         print("Kriva lozinka!")
@@ -158,7 +163,7 @@ def korisnik_brisanje(korisnicko_ime: str, lozinka: str):
     if not korisnik:
         raise HTTPException(status_code=404, detail="Korisnički račun ne postoji!")   
     
-    if not verifikacija_lozinke(lozinka, korisnik["lozinka"]): #kod verifikacije svaki puta baca exception da je unesena kriva lozinka premda nije te se unesena lozinka uspoređuje sa hash lozinkom baze i pretvara u odgovarajući oblik; linija ispod sigurnosnog nije zadovoljavajuća te je netočna
+    if not verifikacija_lozinke(lozinka, korisnik["lozinka"]):
         raise HTTPException(status_code= 401, detail="Kriva lozinka")
         
     return korisnik_brisanje_dynamo(korisnicko_ime)
@@ -173,7 +178,7 @@ def korisnik_profil(korisnik: Korisnik_profil1):
     
     korisnik1 = Korisnik_profil1(**korisnik)
         
-    azuriraj_korisnika_dynamo1(korisnik1)
+    azuriraj_korisnika_dynamo(korisnik1)
     
     return korisnik1
 

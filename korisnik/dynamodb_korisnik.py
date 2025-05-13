@@ -1,17 +1,14 @@
 import boto3
 from botocore.exceptions import ClientError
 
-from korisnik.models import Korisnik_profil, Korisnik
+from models import Korisnik_profil, Korisnik
 from fastapi import HTTPException
 
 from passlib.context import CryptContext
 
-import re
-
-
 s3 = boto3.client('s3')
 
-client = boto3.client('dynamodb', endpoint_url='http://localhost:8000',
+client = boto3.client('dynamodb', endpoint_url='http://host.docker.internal:8000',
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')
@@ -23,6 +20,11 @@ def hash_lozinka(lozinka: str):
 
 def kreiraj_korisnici_db():
     try:
+        existing_tables = client.list_tables()['TableNames']
+        if 'korisnici_db' in existing_tables:
+            
+            return
+        
         table = client.create_table(
             TableName='korisnici_db',
             KeySchema=[
@@ -42,12 +44,11 @@ def kreiraj_korisnici_db():
                 'WriteCapacityUnits': 5
             }
         )
-        print("Tablica 'korisnici_db' je uspješno kreirana.")
+        
         return table
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceInUseException':
-            print("Tablica je već kreirana!")
-        else:
+            print(f"Došlo je do greške: {e.response['Error']['Message']}")
             raise
 
 def dodaj_korisnika_dynamo():
@@ -92,16 +93,7 @@ def dodaj_korisnika_dynamo():
             "ime": "Luka",
             "prezime": "Lukić",
             "email": "luka@example.com"
-        },
-        {
-        "korisnik_ID": "6",
-            "korisnicko_ime": "luka35",
-            "lozinka": "lozinka5",
-            "ime": "Luka",
-            "prezime": "Lukić",
-            "email": "luka@example.com"
-            }
-    ]
+        }]
     
     for korisnik in korisnici:
         
@@ -132,8 +124,7 @@ def dohvati_korisnika_dynamo(korisnicko_ime: str):
         item = response.get("Item")
         if not item:
             raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
-        return {"korisnik_ID": item["korisnik_ID"]["S"],
-            "korisnicko_ime": item["korisnicko_ime"]["S"],
+        return {"korisnicko_ime": item["korisnicko_ime"]["S"],
             "lozinka": item["lozinka"]["S"],
             "ime": item["ime"]["S"],
             "prezime": item["prezime"]["S"],
@@ -145,7 +136,7 @@ def dohvati_korisnika_dynamo(korisnicko_ime: str):
         print("Greška u dohvati_korisnika_dynamo:", str(e))
         raise HTTPException(status_code=500, detail=f"Greška pri dohvaćanju korisnika: {str(e)}")
 
-def dohvati_novi_id():
+def dohvati_id():
     try:
         
         response = client.scan(TableName="korisnici_db")
@@ -188,13 +179,14 @@ def korisnik_registracija_dynamo(korisnik: Korisnik):
             raise HTTPException(status_code=400, detail="Korisnik sa tim korisnickim imenom postoji")
         
         
-    specijalni_znakovi = r"[!\"#$%&/()=?*]"
-    if not re.search(specijalni_znakovi, korisnik.lozinka):
+    specijalni_znakovi = set("!\"#$%&/()=?*")
+
+    if not any(znak in specijalni_znakovi for znak in korisnik.lozinka):
         raise HTTPException(status_code=400, detail="Lozinka ne sadrži specijalni znak!")
     
     korisnik.lozinka = hash_lozinka(korisnik.lozinka)
     
-    korisnik.korisnik_ID= dohvati_novi_id()
+    korisnik.korisnik_ID= dohvati_id()
     
     try:
         novi_korisnik_data = {
@@ -216,7 +208,7 @@ def korisnik_registracija_dynamo(korisnik: Korisnik):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Greška pri dodavanju korisnika u bazu")   
     
-def azuriraj_korisnika_dynamo1(korisnik: Korisnik_profil):
+def azuriraj_korisnika_dynamo(korisnik: Korisnik_profil):
     try:
         update_expression = "SET "
         expression_attribute_values = {}
@@ -229,7 +221,7 @@ def azuriraj_korisnika_dynamo1(korisnik: Korisnik_profil):
                 name_placeholder = f"#{field}"
 
                 expression_attribute_names[name_placeholder] = field
-                expression_attribute_values[placeholder] = value ={"S": str(value)}
+                expression_attribute_values[placeholder] ={"S": str(value)}
                 update_expression += f"{name_placeholder} = {placeholder}, "
 
         
@@ -283,15 +275,9 @@ def dohvati_korisnika_po_emailu_dynamo(email: str):
 
 def korisnik_brisanje_dynamo(korisnicko_ime: str):
     try:
-        response = client.delete_item(TableName="korisnici_db", Key={"korisnicko_ime":{"S": korisnicko_ime}})
+        client.delete_item(TableName="korisnici_db", Key={"korisnicko_ime":{"S": korisnicko_ime}})
         return {f"Korisnik {korisnicko_ime} je obrisan!"}
     except:
         raise HTTPException(status_code=500, detail="Greška kod brisanja korisnika!")
 
-def dohvati_id():
-    response = table.scan(ProjectionExpression="korisnik_ID")
-    korisnici = response.get("Items", [])
 
-    if not korisnici:
-        return 1
-    return max(int(kor["korisnik_ID"]) for kor in korisnici) + 1

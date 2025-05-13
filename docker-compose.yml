@@ -6,37 +6,98 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - app-network
+      - backend
+    deploy:
+      replicas: 2
+
+  dynamodb-dev:
+    build:
+      context: ./dynamodb_local
+    ports:
+      - "8010:8000"
+    networks:
+      - backend
+    deploy:
+      replicas: 2
+
+  recenzija:
+    build:
+      context: ./recenzija
+    ports:
+      - "8002:8000"
+    depends_on:
+      - dynamodb-local
+      - dynamodb-dev
+    environment:
+      - PYTHONPATH=/app
+      - DYNAMODB_LOCAL_URL=http://dynamodb-local:8000
+      - DYNAMODB_DEV_URL=http://dynamodb-dev:8000
+    networks:
+      - backend
+    deploy:
+      replicas: 2
 
   kolekcija:
     build:
       context: ./kolekcija
     ports:
-      - "8001:8001"
+      - "8005:8000"
+    depends_on:
+      - dynamodb-local
+      - dynamodb-dev
+    environment:
+      - PYTHONPATH=/app
+      - DYNAMODB_LOCAL_URL=http://dynamodb-local:8000
+      - DYNAMODB_DEV_URL=http://dynamodb-dev:8000
+    networks:
+      - backend
+    deploy:
+      replicas: 2
+
+  korisnik:
+    build:
+      context: ./korisnik
+    ports:
+      - "8004:8000"
     depends_on:
       - dynamodb-local
     environment:
-      - AWS_REGION=eu-central-1
-      - AWS_ACCESS_KEY_ID=dummy
-      - AWS_SECRET_ACCESS_KEY=dummy
-      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - PYTHONPATH=/app
+      - DYNAMODB_LOCAL_URL=http://dynamodb-local:8000
     networks:
-      - app-network
+      - backend
+    deploy:
+      replicas: 2
+
   poruka:
     build:
       context: ./poruka
     ports:
-      - "8002:8002"
+      - "8003:8000"
     depends_on:
       - dynamodb-local
     environment:
-      - AWS_REGION=eu-central-1
-      - AWS_ACCESS_KEY_ID=dummy
-      - AWS_SECRET_ACCESS_KEY=dummy
-      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - PYTHONPATH=/app
+      - DYNAMODB_LOCAL_URL=http://dynamodb-local:8000
     networks:
-      - app-network
+      - backend
+    deploy:
+      replicas: 2
+
+  nginx:
+    image: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - backend
+    depends_on:
+      - recenzija
+      - poruka
+      - korisnik
+      - kolekcija
 
 networks:
-  app-network:
+  backend:
     driver: bridge

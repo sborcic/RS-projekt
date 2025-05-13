@@ -66,15 +66,7 @@ class Poruka(BaseModel):
     korisnik_primatelj: str
     korisnik_posiljatelj: str
     poruka:str
-
-class Korisnik1(BaseModel):
-    username: str
-    email: Union[str, None] = None
-    full_name: Union[str, None] = None
     
 class Token(BaseModel):
     access_token: str
     token_type: str
-
-#class TokenData(BaseModel):
-    ime_korisnika: str | None = None

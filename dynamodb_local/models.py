@@ -14,3 +14,8 @@ class IzmjeniKolekciju(BaseModel):
     kolekcija_id: str
     kolekcija_naziv: str
     brojevi: list[int]
+
+class Poruka(BaseModel):
+    korisnik_primatelj: str
+    korisnik_posiljatelj: str
+    poruka:str

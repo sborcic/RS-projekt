@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from models import Recenzija
+from routers.models import Recenzija
 from dynamodb.dynamodb import dodavanje_recenzije_dynamo, prikaz_recenzija_dynamo, prikaz_ocjene_dynamo
 
 

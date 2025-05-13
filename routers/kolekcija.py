@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from typing import Literal
 from dynamodb.dynamodb import dohvati_kolekciju_dynamo, dohvati_kolekciju_sa_brojevima_dynamo, dodaj_kolekciju_dynamo, kolekcija_izmjena_dynamo, unos_nedostaje_dynamo, unos_duple_dynamo, brisanje_nedostaje_dynamo, brisanje_duple_dynamo, trazi_zamjenu_dynamo
-from models import DodajKolekciju, IzmjeniKolekciju
+from routers.models import DodajKolekciju, IzmjeniKolekciju
 
 router = APIRouter(prefix=("/kolekcija"))  
 

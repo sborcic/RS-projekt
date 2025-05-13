@@ -16,7 +16,7 @@ class Korisnik_bez_lozinke(BaseModel):
     ime: str = Field(max_length=25)
     prezime: str  = Field(max_length=25)
     email: str
-    korisnicko_ime: str   
+    korisnicko_ime: str  
            
 class Korisnik_prijava(BaseModel):
     email: str

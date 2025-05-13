@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from models import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
+from routers.models import Korisnik, Korisnik_prijava, Korisnik_profil, Korisnik_pretraga, Token, Korisnik_prijava_korisnickim_imenom
 from typing import Optional, Annotated
 import re
 import jwt

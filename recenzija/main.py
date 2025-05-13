@@ -1,6 +1,6 @@
 from fastapi import APIRouter, FastAPI
+from dynamodb import dodavanje_recenzije_dynamo, prikaz_recenzija_dynamo, prikaz_ocjene_dynamo
 from models import Recenzija
-from dynamodb_local.dynamodb import dodavanje_recenzije_dynamo, prikaz_recenzija_dynamo, prikaz_ocjene_dynamo
 
 app = FastAPI()
 
