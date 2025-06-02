@@ -6,7 +6,8 @@ from passlib.context import CryptContext
 s3 = boto3.client('s3')
 
 client = boto3.client('dynamodb',
-    endpoint_url='http://host.docker.internal:8000',    #endpoint_url="http://localhost:8000",
+    endpoint_url= 'http://dynamodb:8000',
+    #'http://host.docker.internal:8000',    #endpoint_url="http://localhost:8000",
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')

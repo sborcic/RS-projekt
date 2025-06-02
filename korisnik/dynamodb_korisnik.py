@@ -8,7 +8,9 @@ from passlib.context import CryptContext
 
 s3 = boto3.client('s3')
 
-client = boto3.client('dynamodb', endpoint_url='http://host.docker.internal:8000',
+client = boto3.client('dynamodb', 
+    endpoint_url= 'http://dynamodb:8000',
+    #'http://host.docker.internal:8000',
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')
@@ -22,7 +24,7 @@ def kreiraj_korisnici_db():
     try:
         existing_tables = client.list_tables()['TableNames']
         if 'korisnici_db' in existing_tables:
-            
+            print("Tablica 'korisnici_db' već postoji.")
             return
         
         table = client.create_table(
@@ -48,7 +50,9 @@ def kreiraj_korisnici_db():
         return table
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceInUseException':
-            print(f"Došlo je do greške: {e.response['Error']['Message']}")
+            print(f"Tablica 'korisnici_db' već postoji.")
+        else:
+            print(f"Došlo je do neočekivane greške pri kreiranju tablice: {e}")
             raise
 
 def dodaj_korisnika_dynamo():

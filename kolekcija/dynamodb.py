@@ -7,7 +7,9 @@ from models import Recenzija, Poruka
 s3 = boto3.client('s3')
 
 client = boto3.client('dynamodb',
-    endpoint_url='http://host.docker.internal:8000',    #endpoint_url="http://localhost:8000",
+    endpoint_url= 'http://dynamodb:8000',
+    #'http://host.docker.internal:8000',  
+    # #endpoint_url="http://localhost:8000",
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')
@@ -282,15 +284,9 @@ dodaj_dostupne_kolekcije()
 
 def kreiraj_tablicu_kolekcije_brojevi():
     try:
-        client.describe_table(TableName='kolekcije_brojevi')
-        
-        return
-
-    except ClientError as e:
-        error_code = e.response['Error']['Code']
-        if error_code != 'ResourceNotFoundException':
-            
-            raise e
+        existing_tables = client.list_tables()['TableNames']
+        if 'kolekcije_brojevi' in existing_tables:
+            return
 
         client.create_table(
             TableName='kolekcije_brojevi',
@@ -305,7 +301,8 @@ def kreiraj_tablicu_kolekcije_brojevi():
                 'WriteCapacityUnits': 5
             }
         )
-        
+    except ClientError as e:
+        print(f"Greška pri kreiranju tablice: {e.response['Error']['Message']}")
     except Exception as e:
         print(f"Greška pri kreiranju tablice: {e}")
         

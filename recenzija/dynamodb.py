@@ -7,7 +7,9 @@ from models import Recenzija
 s3 = boto3.client('s3')
 
 client = boto3.client('dynamodb',
-    endpoint_url='http://host.docker.internal:8000',    #endpoint_url="http://localhost:8000",
+    endpoint_url='http://dynamodb:8000',            
+    #'http://host.docker.internal:8000',    
+    #endpoint_url="http://localhost:8000",
     region_name='eu-central-1',
     aws_access_key_id='dummy',
     aws_secret_access_key='dummy')
@@ -281,19 +283,11 @@ def dodaj_dostupne_kolekcije():
 dodaj_dostupne_kolekcije()
 
 def kreiraj_tablicu_kolekcije_brojevi():
+    
+    table_name='kolekcije_brojevi'
     try:
-        client.describe_table(TableName='kolekcije_brojevi')
-        
-        return
-
-    except ClientError as e:
-        error_code = e.response['Error']['Code']
-        if error_code != 'ResourceNotFoundException':
-            
-            raise e
-
         client.create_table(
-            TableName='kolekcije_brojevi',
+            TableName=table_name,
             KeySchema=[
                 {'AttributeName': 'kolekcija_id', 'KeyType': 'HASH'}
             ],
@@ -305,9 +299,21 @@ def kreiraj_tablicu_kolekcije_brojevi():
                 'WriteCapacityUnits': 5
             }
         )
-        
+        print(f"Tablica '{table_name}' uspješno kreirana.")
+   
+
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == 'ResourceInUseException':
+            
+            print(f"Tablica '{table_name}' već postoji ili se kreira.")
+        else:
+            print(f"Greška pri kreiranju tablice '{table_name}': {e}")
+            raise e 
     except Exception as e:
-        print(f"Greška pri kreiranju tablice: {e}")
+        
+        print(f"Greška prilikom inicijalizacije tablice '{table_name}': {e}")
+        raise e 
         
 kreiraj_tablicu_kolekcije_brojevi()
 
